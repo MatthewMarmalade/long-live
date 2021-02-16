@@ -1,0 +1,30 @@
+{
+  "name": "long-live",
+  "version": "1.0.0",
+  "description": "Discord Bot for a game about murder, lies, and politics.",
+  "main": "long-live.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MatthewMarmalade/long-live.git"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "social",
+    "game",
+    "asymmetric",
+    "shakespeare",
+    "tragedy",
+    "castle",
+    "deception"
+  ],
+  "author": "Matthew Marsland",
+  "license": "BSD-3-Clause",
+  "bugs": {
+    "url": "https://github.com/MatthewMarmalade/long-live/issues"
+  },
+  "homepage": "https://github.com/MatthewMarmalade/long-live#readme"
+}
