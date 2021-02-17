@@ -5,8 +5,10 @@ bot.login(config.token);
 
 //okay! we've got the bot all set up and ready. now it's time for the big thing.
 
+//note: use their majesty if people don't specify.
+
 //VARS: HELP TEXT
-let main_help_text = "\
+const main_help_text = "\
 Long Live - Help:\n\
 Long Live is a social game playable entirely on Discord for 1-5 players.\n\
 Commands:\n\
@@ -18,27 +20,34 @@ crowned at the game's conclusion (Queen, King, God-Emperox, etc.) (leave it blan
 - exit!: Leaves whatever game you are in.\n\
 - exuent!: Ends a game you are the owner of.\n\
 - act 1, scene 1!: Begins the game. Causes all currently unassigned roles to be assigned randomly.";
-let player_help_text = "NOT IMPLEMENTED?";
+const player_help_text = "NOT IMPLEMENTED?";
 
 //VARS & HELPERS: NEW GAME TEXT
-function new_game_title(title) { return "**The " + title + " Is Dead! Long Live ...?**\n"}
-function new_game_tagline(state) { return "*A new game of text-based intrigue and betrayal " + state + ".*\n"}
-function new_game_players(players) { return "Players (" + players.length + "/5): \n- " + players.join('\n- ') + "\n"; }
-let new_game_help = "Use the command 'long live <name> the <title>!' (ex: 'Long Live Long-Live the Best Bot!') to join the game! \
-Once you've joined, react to choose your role:\n\
-:ghost: The Grim | \
-:crown: The Heir | \
-:wine_glass: The Advisor | \
-:church: The Bishop | \
-:crossed_swords: The Captain | \
-:game_die: Random\n\
+function playbill_title(title) { return "**" + title + " Is Dead! Long Live ...?**\n"}
+function playbill_tagline(state) { return "*A new game of text-based intrigue and betrayal " + state + ".*\n"}
+function playbill_players(players) { return "Players (" + players.length + "/5): \n- " + players.join('\n- ') + "\n"; }
+const playbill_help = "Use the command `long live <name> the <title>!` to join the game! (ex: `Long Live Long-Live the Best Bot!`) \
+You can use the command `exit!` to leave the game again. Once you've joined, react to choose your role:\n\
+:ghost: The Grim | :crown: The Heir | :wine_glass: The Advisor | :church: The Bishop | :crossed_swords: The Captain | :game_die: Random\n\
 ";
-function new_game_text(title, state, players) { return new_game_title(title) + new_game_tagline(state) + new_game_players(players) + new_game_help; }
+function playbill_text(title, state, players) { return playbill_title(title) + playbill_tagline(state) + playbill_players(players) + playbill_help; }
+
+//VARS: RANDOM NAMES
+const macbeth_names = ['Duncan', 'Malcolm', 'Donalbain', 'Macbeth', 'Lady Macbeth', 'Banquo', 'Fleance', 'Macduff', 'Lennox', 'Ross', 'Menteith', 'Angus', 'Caithness', 'Lady Macduff', 'Hecate', 'Young Siward', 'Seyton'];
+const hamlet_names = ['Hamlet', 'Polonius', 'Rosencrantz', 'Guildenstern', 'Ophelia', 'Gertrude', 'Claudius', 'Horatio', 'Laertes', 'Fortinbras'];
+const random_names = [].concat(macbeth_names,hamlet_names);
+
+//HELPERS: Random Choice
+function randomPop(array) {
+    //const random = Math.random();
+    //console.log("length: " + array.length + " random: " + random + " floored: " + Math.floor(random * array.length));
+    return array.splice(Math.floor(Math.random() * array.length),1);
+}
 
 //HELPERS: Command parsing for complex wildcarded inline commands
 function commandMatch(command, key) {
     //takes a string command, returns true if it matches the key and false otherwise
-    var lowCommand = command.toLowerCase();
+    let lowCommand = command.toLowerCase();
     keyWords = key.split('*');
     //console.log("Command: " + lowCommand + " KeyWords: " + keyWords);
     for (var i = 0; i < keyWords.length; i++) {
@@ -61,6 +70,7 @@ function commandArgs(command, key) {
     //should only be run if commandMatch has returned true for the given command and key!
     if (!commandMatch(command,key)) {
         console.error("Command does not match key! Command: " + command + ", Key: " + key);
+        return [];
     }
     var varCommand = command.slice();
     var lowCommand = command.toLowerCase();
@@ -95,14 +105,24 @@ class Game {
         this.main_channel = main_channel; this.main_message = main_message; this.title = title; this.owner = owner;
         this.players = [];
         this.state = 'is beginning';
+        this.random_names = random_names.slice();
+    }
+    //randomName - returns a random unique name for a player.
+    randomName() {
+        console.log("Random name from: " + this.random_names);
+        if (this.random_names.length == 0) {
+            this.random_names = random_names.slice();
+            console.log("Names empty, replaced with: " + random_names);
+        }
+        return randomPop(this.random_names);
     }
     //mainText - renders the game into a piece of text in the main channel
     mainText() {
-        return new_game_text(this.title, this.state, this.playerTexts());
+        return playbill_text(this.title, this.state, this.playerTexts());
     }
     //exuentText - renders the game into a short message marking a closed game.
     exuentText() {
-        return new_game_title(this.title) + "*A game of text-based intrigue and betrayal has been cancelled successfully.*";
+        return playbill_title(this.title) + "*A game of text-based intrigue and betrayal has been cancelled successfully.*";
     }
     //playerTexts - renders the players into text:
     playerTexts() {
@@ -159,17 +179,16 @@ class Player {
     //mainText - formatting whatever information about a player is available into something suitable for the main text
     mainText() {
         if (this.role != null) {
-            return this.player.username + " *as* " + this.name + " the " + this.role;
+            return this.player.username + " *as* " + this.role + " " this.name;
         } else {
             return this.player.username + " *as* " + this.name;
         }
     }
-
 }
 
 //MARK: STARTUP
 bot.once('ready', () => {
-    console.log('Bot Logged In And Ready!');
+    console.log('Long-Live Logged In And Ready!');
 })
 
 //MARK: MESSAGE HANDLING
@@ -184,8 +203,8 @@ bot.on('message', message => {
     //we need to do is divide by channel id.
     //if it's a dm channel, it's a bit of gameplay. we need to identify what game the
     //player is in if they are in any games.
-    let msg = message.content;
-    let words = msg.split(' ');
+    const msg = message.content;
+    //const words = msg.split(' ');
 
     if (message.channel.type == 'text') {
         //from text-channel command options:
@@ -197,10 +216,16 @@ bot.on('message', message => {
         if (msg.toLowerCase() == 'help!') {
             //help page
             message.author.send(main_help_text);
-        } else if (commandMatch(msg, 'the * is dead!')) {
+        } else if (commandMatch(msg, 'the * is dead!') || msg.toLowerCase() == 'their majesty is dead!') {
             //new game - permissions check?
-            let title = commandArgs(msg, 'the * is dead!')[0];
-            message.channel.send(new_game_text(title,'is beginning',[]))
+            var old_game = gamesByChannel[message.channel.id];
+            if (old_game != null) {
+                old_game.exuent();
+                old_game.main_message.edit(old_game.exuentText());
+                delete old_game;
+            }
+            const title = commandMatch(msg, 'the * is dead!') ? 'The ' + commandArgs(msg, 'the * is dead!')[0] : 'Their Majesty';
+            message.channel.send(playbill_text(title,'is beginning',[]))
                 .then(text => target = text)
                 .then(() => new_game = new Game(message.channel, target, title, message.author))
                 .then(() => gamesByChannel[message.channel.id] = new_game)
@@ -212,7 +237,7 @@ bot.on('message', message => {
                 .then(() => target.react('🎲'))
                 .catch(console.error);
         } else if (msg.toLowerCase() == 'exit!') {
-            var game = gamesByPlayer[message.author.id];
+            let game = gamesByPlayer[message.author.id];
             if (game != null) {
                 if (game.removePlayer(message.author)) {
                     //message.react('✅');
@@ -226,30 +251,32 @@ bot.on('message', message => {
             //leave game
         } else if (msg.toLowerCase() == 'exuent!') {
             //cancel game
+            //permissions check?
             var game = gamesByChannel[message.channel.id];
             if (game != null) {
-                if (game.owner == message.author) {
-                    game.exuent();
-                    game.main_message.edit(game.exuentText());
-                    delete game;
-                } else {
-                    message.react('🚫');
-                }
-                //message.react('✅');
-            } else {
-                message.react('🚫');
-            }
+                game.exuent();
+                game.main_message.edit(game.exuentText());
+                delete game;
+            } else { message.react('🚫'); }
         } else if (msg.toLowerCase() == 'act 1, scene 1!') {
             //start game
             console.log("UNIMPLEMENTED!")
-        } else if (commandMatch(msg, 'long live * the *!')) {
+        } else if (commandMatch(msg, 'long live * the *!') || commandMatch(msg, 'long live the *!') || msg.toLowerCase() == 'long live!') {
             //join game
-            let args = commandArgs(msg, 'long live * the *!');
-            let name = args[0]; let title = args[1];
             var game = gamesByChannel[message.channel.id];
             if (game != null) {
+                //get the name and title of the player
+                var name = game.randomName(); var title = 'Their Majesty';
+                if (commandMatch(msg, 'long live * the *!')) {
+                    const args = commandArgs(msg, 'long live * the *!');
+                    name = args[0]; title = 'The ' + args[1];
+                } else if (commandMatch(msg, 'long live the *!')) {
+                    const args = commandArgs(msg, 'long live the *!');
+                    title = 'The ' + args[0]; //name will still be random
+                } //else just use defaults.
+
+                //use the name and title to add a new player
                 if (game.newPlayer(message.author, name, title)) {
-                    //message.react('✅');
                     game.main_message.edit(game.mainText());
                 } else {
                     message.react('🚫');
@@ -269,5 +296,37 @@ bot.on('message', message => {
     } else {
         console.log("ERROR: What kind of channel is this?");
         console.log(message);
+    }
+})
+
+bot.on('messageReactionAdd', (reaction, user) => {
+    //console.log(reaction._emoji.name);
+    if (user.bot) {
+        return;
+    }
+
+    var game = gamesByChannel[reaction.message.channel];
+    if (game != null) {
+        if (reaction.message == game.main_message) {
+            var player = game.getPlayer(user)
+            if (player != null) {
+                //need to make sure that for normal roles, there's only one per.
+                if (reaction.count <= 2 || reaction._emoji.name == '🎲') {
+                    reaction.users.remove(user.id);
+                }
+
+                /*
+                switch (reaction._emoji.name) {
+                    case '👻': game.roles['grim'] == null ? game.newRole(user, 'grim') :  break;
+                    case '👑': break;
+                    case '🍷': break;
+                    case '⛪': break;
+                    case '⚔️': break;
+                    case '🎲': break;
+                    default: console.log("ERROR: Unknown Reaction: " + reaction._emoji.name); break;
+                }
+                */
+            }
+        }
     }
 })
