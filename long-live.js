@@ -95,7 +95,7 @@ function commandArgs(command, key) {
 
 //VARS: master variables for storing different games, indexed by main channel
 var gamesByChannel = {}
-var gamesByPlayer = {}
+var gamesByUser = {}
 
 //CLASS: Game, a complex class containing a full game.
 class Game {
@@ -106,13 +106,14 @@ class Game {
         this.players = [];
         this.state = 'is beginning';
         this.random_names = random_names.slice();
+        this.roles = {'Grim':null,'Heir':null,'Advisor':null,'Bishop':null,'Captain':null,'Mysterious':[]};
     }
     //randomName - returns a random unique name for a player.
     randomName() {
-        console.log("Random name from: " + this.random_names);
+        //console.log("Random name from: " + this.random_names);
         if (this.random_names.length == 0) {
             this.random_names = random_names.slice();
-            console.log("Names empty, replaced with: " + random_names);
+            //console.log("Names empty, replaced with: " + random_names);
         }
         return randomPop(this.random_names);
     }
@@ -133,15 +134,15 @@ class Game {
         return texts;
     }
     //newPlayer - adds a new player to the game (if there is room)
-    newPlayer(player, name, title) {
+    newPlayer(user, name, title) {
         if (this.players.length < 5) {
             for (var i in this.players) {
-                if (this.players[i].name == name || this.players[i].player == player) {
+                if (this.players[i].name == name || this.players[i].user == user) {
                     return false
                 }
             }
-            let new_player = new Player(player, name, title, this);
-            gamesByPlayer[player.id] = this
+            let new_player = new Player(user, name, title, this);
+            gamesByUser[user.id] = this
             this.players.push(new_player);
             return true;
         } else {
@@ -150,21 +151,71 @@ class Game {
         }
     }
     //removePlayer - removes a player from the game (if they are in the game)
-    removePlayer(player) {
+    removePlayer(user) {
         //let index = this.players.indexOf(player);
+        var player;
         for (var i in this.players) {
-            if (this.players[i].player == player) {
+            player = this.players[i];
+            if (player.user == user) {
+                if (player.role == 'Mysterious') {
+                    //console.log("Mysterious removal check BEFORE: " + this.roles['Mysterious'])
+                    this.roles['Mysterious'].splice(this.roles['Mysterious'].indexOf(player),1);
+                    //console.log("Mysterious removal check AFTER: " + this.roles['Mysterious']);
+                } else if (player.role != null) {
+                    this.roles[player.role] = null;
+                }
+                if (player.reaction != null) {
+                    player.reaction.users.remove(player.user.id);
+                }
                 this.players.splice(i,1);
-                gamesByPlayer[player.id] = null;
+                gamesByUser[user.id] = null;
                 return true;
             }
         }
         return false;
     }
+    //getPlayer - returns the player corresponding to the discord user or null otherwise
+    getPlayer(user) {
+        for (var i in this.players) {
+            if (this.players[i].user == user) {
+                return this.players[i]
+            }
+        }
+        return null;
+    }
+    //setRole - sets a role to a player within the game
+    setRole(player,reaction) {
+        if (player.role == 'Mysterious') {
+            //console.log("Mysterious removal check BEFORE: " + this.roles['Mysterious'])
+            this.roles['Mysterious'].splice(this.roles['Mysterious'].indexOf(player),1);
+            //console.log("Mysterious removal check AFTER: " + this.roles['Mysterious']);
+        } else if (player.role != null) {
+            this.roles[player.role] = null;
+        }
+        if (player.reaction != null) {
+            //console.log("Removing Reaction BEFORE.")
+            player.reaction.users.remove(player.user.id);
+        }
+        player.reaction = reaction;
+        if (reaction != null) {
+            switch (reaction._emoji.name) {
+                case '👻': player.role = 'Grim'; this.roles['Grim'] = player; break;
+                case '👑': player.role = 'Heir'; this.roles['Heir'] = player; break;
+                case '🍷': player.role = 'Advisor'; this.roles['Advisor'] = player; break;
+                case '⛪': player.role = 'Bishop'; this.roles['Bishop'] = player; break;
+                case '⚔️': player.role = 'Captain'; this.roles['Captain'] = player; break;
+                case '🎲': player.role = 'Mysterious'; this.roles['Mysterious'].push(player); break;
+                case null: break;
+                default: console.log("ERROR: Unknown Reaction: " + reaction._emoji.name); return;
+            }
+        } else {
+            player.role = null;
+        }
+    }
     //exuent - removes all players and this game from the record
     exuent() {
         for (var i in this.players) {
-            gamesByPlayer[this.players[i].id] = null;
+            gamesByUser[this.players[i].user.id] = null;
         }
         gamesByChannel[this.main_channel.id] = null;
     }
@@ -173,15 +224,15 @@ class Game {
 //CLASS: Player, a class representing a player in a game
 class Player {
     //constructor - when a player joins a game
-    constructor(player, name, title, game) {
-        this.player = player; this.name = name; this.title = title; this.game = game;
+    constructor(user, name, title, game) {
+        this.user = user; this.name = name; this.title = title; this.game = game;
     }
     //mainText - formatting whatever information about a player is available into something suitable for the main text
     mainText() {
         if (this.role != null) {
-            return this.player.username + " *as* " + this.role + " " this.name;
+            return this.user.username + " *as* " + this.role + " " + this.name;
         } else {
-            return this.player.username + " *as* " + this.name;
+            return this.user.username + " *as* " + this.name;
         }
     }
 }
@@ -237,7 +288,7 @@ bot.on('message', message => {
                 .then(() => target.react('🎲'))
                 .catch(console.error);
         } else if (msg.toLowerCase() == 'exit!') {
-            let game = gamesByPlayer[message.author.id];
+            let game = gamesByUser[message.author.id];
             if (game != null) {
                 if (game.removePlayer(message.author)) {
                     //message.react('✅');
@@ -300,32 +351,49 @@ bot.on('message', message => {
 })
 
 bot.on('messageReactionAdd', (reaction, user) => {
-    //console.log(reaction._emoji.name);
+    //console.log(reaction);
     if (user.bot) {
+        //console.log("Just a bot, nothing to see here!");
         return;
     }
 
-    var game = gamesByChannel[reaction.message.channel];
+    var game = gamesByChannel[reaction.message.channel.id];
     if (game != null) {
+        //console.log("LOG: Found Game!");
         if (reaction.message == game.main_message) {
+            //console.log("LOG: Correct Game!");
             var player = game.getPlayer(user)
             if (player != null) {
+                //console.log("LOG: Found Player!");
                 //need to make sure that for normal roles, there's only one per.
                 if (reaction.count <= 2 || reaction._emoji.name == '🎲') {
-                    reaction.users.remove(user.id);
-                }
+                    //console.log("LOG: Within Reaction Quota!");
+                    game.setRole(player, reaction);
+                    game.main_message.edit(game.mainText());
+                } else { reaction.users.remove(user.id); }
+            } else { reaction.users.remove(user.id); }
+        }
+    }
+})
 
-                /*
-                switch (reaction._emoji.name) {
-                    case '👻': game.roles['grim'] == null ? game.newRole(user, 'grim') :  break;
-                    case '👑': break;
-                    case '🍷': break;
-                    case '⛪': break;
-                    case '⚔️': break;
-                    case '🎲': break;
-                    default: console.log("ERROR: Unknown Reaction: " + reaction._emoji.name); break;
+bot.on('messageReactionRemove', (reaction, user) => {
+    //no way to check for bot
+
+    var game = gamesByChannel[reaction.message.channel.id];
+    if (game != null) {
+        //console.log("LOG: Found Game");
+        if (reaction.message == game.main_message) {
+            //console.log("LOG: Correct Game");
+            var player = game.getPlayer(user)
+            if (player != null) {
+                //console.log("LOG: Found Player");
+                if (player.reaction == reaction) {
+                    //console.log("LOG: Need to remove role!");
+                    game.setRole(player, null);
+                    game.main_message.edit(game.mainText());
+                } else {
+                    //console.log("LOG: Don't need to remove role!");
                 }
-                */
             }
         }
     }
