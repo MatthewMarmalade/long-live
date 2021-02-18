@@ -10,29 +10,23 @@ Begin and join a game in a server channel. Primary play is carried out in a dm w
 
 ## To Do
 ### Setup
-- Role Choices - messageReactionAdd
-- Role Switching
-- Role Leaving - messageReactionRemove
-- Random Role Choice
+- ~~Role Choices - messageReactionAdd~~
+- ~~Role Switching~~
+- ~~Role Leaving - messageReactionRemove~~
+- ~~Random Role Choice~~
 
 ### Game
-- Class Diagram:
-  - Days
-  - News
-  - Locations
-  - Factions
-  - Available Actions Manager
-- User Story of the First Day, then the Second
-- Available actions display
-- Actions and News creation
-- Influence manager
+- Taking actions
+- Time passing/action economy: influence, money, time
+- Tracking location and available actions display
+- Newsiness and ranking and corruption
 - Proposals and Votes
 - Special Proposals
 - Playbooks
 - Help Functions
+- AI
 
 ### Additional
-- AI (to support <5 players)
 - Highlights (a little idea)
 - Events (heightening, probably needs some AI playtests to configure)
 - Map (could be lots of fun! probably primarily static?)
