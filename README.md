@@ -1,8 +1,8 @@
 # Long Live
-An asymmetric text-based competitive social rpg of limited information.
+An asymmetric shakespearean text-based competitive social rpg of limited information.
 
 ## Intentions
-The previous monarch has died of oddly bloody natural causes. Players navigate the castle, interact with each other, attempt to garner influence with the various factions, and if they can find time for it amidst all the social backstabbing, try to find the *literal* backstabber.. of the last person who held the throne. Play proceeds along a number of days in which actions are taken asynchronously; at the beginning of the next day everyone hears about each other's actions.  
+The previous monarch has died of oddly bloody natural causes. Players navigate the castle, interact with each other, attempt to garner influence with the various factions, and if they can find time for it amidst all the social backstabbing, try to find the *literal* backstabber of the last person who held the throne. Play proceeds along a number of days in which actions are taken asynchronously; at the beginning of the next day everyone hears about each other's actions.  
 
 Begin and join a game in a server channel. Primary play is carried out in a dm with the bot. Play is in as natural-language a form as possible. Commands to perform actions are explicit; however players are strongly encouraged to also roleplay their characters in natural language and are slightly rewarded for doing so. Deception is also a major component; because the players are hearing about each other's actions through the lens of the bot, there is ample opportunity to mislead each other as to their true actions.  
 
@@ -28,5 +28,5 @@ Begin and join a game in a server channel. Primary play is carried out in a dm w
 
 ### Additional
 - Highlights (a little idea)
-- Events (heightening, probably needs some AI playtests to configure)
+- Events (heightening, probably needs some AI playtests to configure) (connects well to the october dates chosen...)
 - Map (could be lots of fun! probably primarily static?)
