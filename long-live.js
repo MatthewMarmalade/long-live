@@ -37,6 +37,10 @@ const macbeth_names = ['Duncan', 'Malcolm', 'Donalbain', 'Macbeth', 'Lady Macbet
 const hamlet_names = ['Hamlet', 'Polonius', 'Rosencrantz', 'Guildenstern', 'Ophelia', 'Gertrude', 'Claudius', 'Horatio', 'Laertes', 'Fortinbras'];
 const random_names = [].concat(macbeth_names,hamlet_names);
 
+//VARS: LOCATIONS -> FACTION -> ROLE relationships
+var locationToFaction = {'Throne Room':'Spirit','Courtyard':'Common','Ballroom':'Noble','Chapel':'Faithful','Barracks':'Guard'};
+var roleToLocation = {'Grim':'Throne Room','Heir':'Courtyard','Advisor':'Ballroom','Bishop':'Chapel','Captain':'Barracks'};
+
 //HELPERS: Random Choice
 function randomPop(array) {
     //const random = Math.random();
@@ -107,14 +111,14 @@ class Game {
     constructor(main_channel, main_message, title, owner) {
         console.log("New Game: The " + title + " Is Dead! Owner: " + owner.username);
         this.main_channel = main_channel; this.main_message = main_message; this.title = title; this.owner = owner;
-        this.players = [];
+        this.players = []; this.ais = []; this.characters = [];
         this.state = 'is beginning';
         this.random_names = random_names.slice();
         this.day = new Day(0);
         this.throne = new Location('Throne Room'); this.courtyard = new Location('Courtyard'); this.ballroom = new Location('Ballroom');
         this.chapel = new Location('Chapel'); this.barracks = new Location('Barracks');
         this.locations = {'Throne Room':this.throne,'Courtyard':this.courtyard,'Ballroom':this.ballroom,'Chapel':this.chapel,'Barracks':this.barracks,
-                          'Spirit':this.throne,'Common':this.courtyard,'Noble':this.ballroom,'Church':this.chapel,'Guard':this.barracks};
+                          'Spirit':this.throne,'Common':this.courtyard,'Noble':this.ballroom,'Faithful':this.chapel,'Guard':this.barracks};
         this.roles = {'Grim':null,'Heir':null,'Advisor':null,'Bishop':null,'Captain':null,'Mysterious':[]};
     }
     //randomName - returns a random unique name for a player.
@@ -220,17 +224,17 @@ class Game {
         player.reaction = reaction;
         if (reaction != null) {
             switch (reaction._emoji.name) {
-                case '👻': player.role = 'Grim'; this.roles['Grim'] = player; break;
-                case '👑': player.role = 'Heir'; this.roles['Heir'] = player; break;
-                case '🍷': player.role = 'Advisor'; this.roles['Advisor'] = player; break;
-                case '⛪': player.role = 'Bishop'; this.roles['Bishop'] = player; break;
-                case '⚔️': player.role = 'Captain'; this.roles['Captain'] = player; break;
-                case '🎲': player.role = 'Mysterious'; this.roles['Mysterious'].push(player); break;
+                case '👻': player.setRole('Grim'); this.roles['Grim'] = player; break;
+                case '👑': player.setRole('Heir'); this.roles['Heir'] = player; break;
+                case '🍷': player.setRole('Advisor'); this.roles['Advisor'] = player; break;
+                case '⛪': player.setRole('Bishop'); this.roles['Bishop'] = player; break;
+                case '⚔️': player.setRole('Captain'); this.roles['Captain'] = player; break;
+                case '🎲': player.setRole('Mysterious'); this.roles['Mysterious'].push(player); break;
                 case null: break;
                 default: console.log("ERROR: Unknown Reaction: " + reaction._emoji.name); return;
             }
         } else {
-            player.role = null;
+            player.setRole(null);
         }
     }
     //exuent - removes all players and this game from the record
@@ -257,20 +261,33 @@ class Game {
                     //then the player's role should be removed from the rolesRemaining
                     rolesRemaining.splice(rolesRemaining.indexOf(this.players[i].role),1);
                 }
+                //add the player to the character list as well
+                this.characters.push(this.players[i]);
             }
+            //with the roles we have left and the players who need them identified, zip together.
             for (var m in mysteries) {
                 var role = randomPop(rolesRemaining);
-                mysteries[m].role = role;
+                mysteries[m].setRole(role);
                 this.roles[role] = mysteries[m]
             }
             this.roles['Mysterious'] = [];
+
+            //now we need to add ais to fill in whatever space is missing.
+            for (var a = 0; a < 5 - this.players.length; a++) {
+                const new_role = randomPop(rolesRemaining);
+                var new_ai = new AI(this.randomName(), "Their Majesty", this, new_role);
+                this.ais.push(new_ai); this.characters.push(new_ai);
+            }
+
             //message all players to say the game is starting
-            for (var i in this.players) {
-                this.players[i].user.send("**" + this.title + " is Dead, Long Live ..." + this.players[i].fullName() + "?**\n*The throne lies empty. Perhaps it is yours for the taking. The game begins.*");
-                let first_news = new News(this.day,Math.floor(Math.random() * 12),this.players[i].home(),this.players[i],this.players[i].defaultAction(),this.players[i].defaultAction(),this.players[i].defaultFlavor());
+            for (var p in this.players) {
+                this.players[p].user.send("**" + this.title + " is Dead, Long Live ..." + this.players[p].fullName() + "?**\n*The throne lies empty... Perhaps it is yours for the taking... The game begins.*");
+            }
+            for (var c in this.characters) {
+                var character = this.characters[c];
+                let first_action = character.firstAction();
+                let first_news = new News(this.day,Math.floor(Math.random() * 12),character.home,character,first_action,first_action,first_action.flavor());
                 this.day.news.push(first_news);
-                //this.nextDay();
-                //this.players[i].user.send("")
             }
             this.nextDay();
             return true;
@@ -302,7 +319,10 @@ class Day {
         return new Day(this.day + 1, this.game);
     }
     toText() {
-        return 'Day ' + this.day;
+        if (this.day == 0) { return 'the 1st of October'; } else
+        if (this.day == 1) { return 'the 2nd of October'; } else 
+        if (this.day == 2) { return 'the 3rd of October'; } 
+        else { return 'the ' + this.day + 'th of October'; }
     }
 }
 
@@ -310,7 +330,13 @@ class Day {
 //10-11 11-12 12-13 13-14 14-15 15-16 16-17 17-18 18-19 19-20 20-21 21-22
 function timeText(time) {
     //console.log(time);
-    return String(time + 10) + 'th bell';
+    if (time == 11) {
+        return '21st bell';
+    } else if (time == 12) {
+        return '22nd bell';
+    } else {
+        return String(time + 10) + 'th bell';
+    }
 }
 
 //CLASS: Location, a class representing a part of the castle
@@ -323,6 +349,7 @@ class Location {
             console.log("ERROR: NON-STANDARD LOCATION - TRACE");
             this.location = 'Courtyard';
         }
+        this.faction = locationToFaction[this.location];
     }
     toText() {
         return 'the ' + this.location;
@@ -332,7 +359,7 @@ class Location {
             case 'Throne Room': return 'the Castle Spirits';
             case 'Courtyard': return 'the Common Folk';
             case 'Ballroom': return 'the High Nobility';
-            case 'Chapel': return 'the Holy Church';
+            case 'Chapel': return 'the Holy Faithful';
             case 'Barracks': return 'the Castle Guard';
         }
     }
@@ -343,62 +370,65 @@ class Player {
     //constructor - when a player joins a game
     constructor(user, name, title, game) {
         this.user = user; this.name = name; this.title = title; this.game = game;
+        this.influence = {'Throne Room':0,'Courtyard':0,'Ballroom':0,'Chapel':0,'Barracks':0};
     }
     //mainText - formatting whatever information about a player is available into something suitable for the main text
     mainText() {
         return this.user.username + " *as* " + this.fullName();
     }
-    //fullName() - role and name together.
+    //fullName - role and name together.
     fullName() {
         if (this.role != null) {
-            return this.role + " " + this.name;
+            return '**' + this.role + " " + this.name + '**';
         } else {
-            return this.name;
+            return '**' + this.name + '**';
         }
     }
-    //home - the player's starting location
-    home() {
-        if (this.homeLocation != null) {
-            return this.homeLocation;
-        } else {
-            switch (this.role) {
-                case 'Grim': this.homeLocation = this.game.throne; break;
-                case 'Heir': this.homeLocation = this.game.courtyard; break;
-                case 'Advisor': this.homeLocation = this.game.ballroom; break;
-                case 'Bishop': this.homeLocation = this.game.chapel; break;
-                case 'Captain': this.homeLocation = this.game.barracks; break;
-                default: console.log("ERROR: Unknown role in home assignment: " + this.role); this.homeLocation = this.game.courtyard; break;
-            }
-            return this.homeLocation;
-        }
+    //setRole - gives this player a role
+    setRole(role) {
+        this.role = role;
+        this.home = this.game.locations[roleToLocation[role]];
     }
-    defaultAction() {
-        if (this.default != null) {
-            return this.default;
-        } else {
-            /*switch (this.role) {
-                case 'Grim': this.default = Visit(this.home()); break;
-                case 'Heir': this.default = Visit(this.home()); break;
-                case 'Advisor': this.default = Visit(this.home()); break;
-                case 'Bishop': this.default = Location('Church'); break;
-                case 'Captain': this.default = Location('Barracks'); break;
-                default: this.default = Visit(this.home()); break;
-            }
-            */
-            this.default = new Visit(this.home());
-            return this.default;
-        }
-    }
-    defaultFlavor() {
-        //this.default();
-        return this.defaultAction().flavor();
+    firstAction() {
+        return new Visit(this.home);
     }
     getRelevantNewsTexts(news) {
         var texts = [];
         for (var n in news) {
-            texts.push(news[n].noTruth());
+            if (news[n].player != this) {
+                texts.push(news[n].noTruth());
+            }
         }
         return texts;
+    }
+}
+
+class AI { //similar API to player
+    //constructor: when a game starts without all five players
+    constructor(name, title, game, role) {
+        this.name = name; this.title = title; this.game = game; this.role = role; this.home = game.locations[roleToLocation[role]];
+        this.influence = {'Throne Room':0,'Courtyard':0,'Ballroom':0,'Chapel':0,'Barracks':0};
+    }
+    //mainText - rendering for the playbill
+    mainText() {
+        return 'Long-Live *as* ' + this.fullName();
+    }
+    //fullName - combination of role and name
+    fullName() {
+        if (this.role != null) {
+            return '**' + this.role + ' ' + this.name + '**';
+        } else {
+            return '**' + this.name + '**';
+        }
+    }
+    //firstAction - action undertaken on the first day
+    firstAction() {
+       return new Visit(this.home);
+    }
+    //getRelevantNewsTexts - doesn't really need to be implemented as nothing is ever sent to them.
+    getRelevantNewsTexts(news) {
+        //error?
+        console.log("ERROR: Should not try to send a bot any news!");
     }
 }
 
@@ -448,7 +478,7 @@ class News {
 class Visit {
     constructor(destination) {this.destination = destination; }
     toText() { return 'was seen walking' }
-    flavor() { return "I think I'll check in on " + this.destination.toText();}
+    flavor() { return "I think I'll check in on " + this.destination.factionText();}
 }
 //[Investigate <Name>]
 class Investigate {
