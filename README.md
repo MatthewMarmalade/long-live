@@ -30,3 +30,6 @@ Begin and join a game in a server channel. Primary play is carried out in a dm w
 - Highlights (a little idea)
 - Events (heightening, probably needs some AI playtests to configure) (connects well to the october dates chosen...)
 - Map (could be lots of fun! probably primarily static?)
+
+### Important/Bugs
+- Should react to failed commands with a question mark, so that users can elect to receive an error message pmed? is that a sane amount of information to track?
