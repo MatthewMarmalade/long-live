@@ -124,7 +124,7 @@ class Game {
         this.players = []; this.ais = []; this.characters = [];
         this.state = 'is beginning';
         this.random_names = random_names.slice();
-        this.day = new Day(0,this);
+        this.day = new Day(0,this); this.next = true;
         this.throne = new Location('Throne',this); this.courtyard = new Location('Courtyard',this); this.ballroom = new Location('Ballroom',this);
         this.chapel = new Location('Chapel',this); this.barracks = new Location('Barracks',this);
         this.locations = [this.throne,this.courtyard,this.ballroom,this.chapel,this.barracks];
@@ -328,16 +328,20 @@ class Game {
     }
     //nextDay - advances the day, sends out news to everyone
     nextDay() {
-        //this.day.nextDay();
-        //?
-        for (var i in this.players) {
-            var player = this.players[i];
-            var newsTexts = player.getRelevantNewsTexts(this.day.news);
-            var message = '** NEWS ** *Whispers filter in at 10th bell about the movements of others the previous day...*\n-' + 
-            newsTexts.join('\n-');
-            player.user.send(message);
+        if (this.next == true) {
+            for (var i in this.players) {
+                var player = this.players[i];
+                player.time = 12;
+                var newsTexts = player.getRelevantNewsTexts(this.day.news);
+                var message = '** NEWS ** *Whispers filter in at 10th bell about the movements of others the previous day...*\n-' + 
+                newsTexts.join('\n-');
+                player.user.send(message);
+            }
+            this.day = this.day.nextDay();
+            this.next = false;
+        } else {
+            console.log("ERROR: Tried to advance day when not ready.")
         }
-        this.day = this.day.nextDay();
     }
     //newAction - parses a player's message into actions and returns a response, else returns null if the command is invalid
     newAction(player, truth, lie, flavor) {
@@ -356,6 +360,7 @@ class Game {
 
         //insert news of the action
         var news = new News(this.day, player.time, player.location, player, trueAction, lieAction, flavor);
+        console.log("Created news: " + news.all());
         this.day.news.push(news);
 
         //and construct an appropriate response
@@ -370,7 +375,6 @@ class Day {
         this.news = [];
     }
     nextDay() {
-        //?
         var nextDay = new Day(this.day + 1, this.game);
         nextDay.previousDay = this;
         this.previousDay = null;
@@ -401,14 +405,14 @@ class Day {
 
 //HELPER: Time int to text
 //10-11 11-12 12-13 13-14 14-15 15-16 16-17 17-18 18-19 19-20 20-21 21-22
-function timeText(time) {
+function timeText(time) { //time represent 'number of hours left before 22nd bell'
     //console.log(time);
-    if (time == 11) {
+    if (time == 1) {
         return '21st bell';
-    } else if (time == 12) {
+    } else if (time == 0) {
         return '22nd bell';
     } else {
-        return String(time + 10) + 'th bell';
+        return String(22 - time) + 'th bell';
     }
 }
 
@@ -425,15 +429,15 @@ class Location {
         this.faction = locationToFaction[this.location];
     }
     toText() {
-        return 'the ' + this.location;
+        return 'the **' + this.location + '**';
     }
     factionText() {
         switch (this.location) {
-            case 'Throne': return 'Castle Spirits';
-            case 'Courtyard': return 'Common Folk';
-            case 'Ballroom': return 'High Nobility';
-            case 'Chapel': return 'Faithful Flock';
-            case 'Barracks': return 'Castle Guards';
+            case 'Throne': return '**Castle Spirits**';
+            case 'Courtyard': return '**Common Folk**';
+            case 'Ballroom': return '**High Nobility**';
+            case 'Chapel': return '**Faithful Flock**';
+            case 'Barracks': return '**Castle Guards**';
         }
     }
     servant() {
@@ -532,7 +536,9 @@ class Player {
     }
     //newAction - executes the action's effect on the player. returns whether the action was valid or not.
     newAction(action) {
-        
+        if (action.type == 'End') {
+            this.game.next = true;
+        }
         return true;
     }
 }
@@ -648,6 +654,8 @@ function newAction(game,actionText,character) {
         if (player == null) { console.log("ERROR: '" + playerName + "' is not a player!"); return null; }
         if (isNaN(crowns)) { console.log("ERROR: '" + crowns + "' is not a number!"); return null; }
         return new Pay(crowns,player);
+    } else if (text == '[end day]') {
+        return new End(character.time);
     } else if (commandMatch(text, '[propose * tax of *]')) {
         var args = commandArgs(text, '[propose * tax of *]');
         const crowns = args[0]; const locText = args[1];
@@ -720,7 +728,7 @@ class Visit {
     toText() { return 'were seen walking' }
     flavor() { return "I think I'll check in on the " + this.destination.factionText();}
     response(player) {
-        return '***The ' + titleText(this.destination.factionText()) + '** welcome you to **' + this.destination.toText() + '***\n' + this.destination.visitText(player);
+        return '*The ' + titleCase(this.destination.factionText()) + ' welcome you to ' + this.destination.toText() + '*\n' + this.destination.visitText(player);
     }
 }
 //[Investigate <Name>]
@@ -754,6 +762,26 @@ class Pay {
     response(player) {
         return '***The ' + player.location.servant() + '** agrees to carry your message to **' + this.player.fullName() + '**.*';
     }
+}
+//[End Day]
+class End {
+    constructor(time) { this.type = 'End'; this.time = time; }
+    toText() {return this.time == 0 ? 'turned in for bed at the end of the day' : 'spent the rest of the day accounting to personal business';}
+    response(player) {
+        var first; var remaining;
+        if (player.location != player.home) {
+            first = '*You return to ' + player.home.toText() + ', ';
+        } else {
+            first = '*You remain in your private chambers, ';
+        }
+        if (this.time == 0) {
+            remaining = 'and lay down to rest.';
+        } else {
+            remaining = 'and pass the ' + this.time + ' hours before the candles burn low in contemplation of the day to come.';
+        }
+        return first + remaining;
+    }
+
 }
 //[Propose <Crowns> Tax of <Faction>]
 class Propose {
@@ -834,7 +862,7 @@ class Direct {
     constructor(location) {this.location = location;}
     toText() {return 'suggested evidence might be found in ' + this.location.toText();}
     response(player) {
-        return "**The Dutiful Sergeant.** " + this.location.toText() + ", you say? Well, we'll go give it a look-over tomorrow. Perhaps we'll turn up the bloody dagger after all!";
+        return "**The Dutiful Sergeant.** " + titleCase(this.location.toText()) + ", you say? Well, we'll go give it a look-over tomorrow. Perhaps we'll turn up the bloody dagger after all!";
     }
 }
 //[Suspect <Name>]
@@ -1037,12 +1065,20 @@ bot.on('message', message => {
                 if (response != null) {
                     //then the action was successful
                     message.channel.send(response);
+                    if (game.next) {
+                        game.nextDay();
+                    }
                 } else {
                     //then the action was not successful
+                    console.log("ERROR: Response null: " + response);
                     message.react('🚫');
                 }
+            } else {
+                console.log("ERROR: Player Not Found");
+                message.react('🚫');
             }
         } else {
+            console.log("ERROR: Game Not Found");
             message.react('🚫');
         }
     } else {
