@@ -16,15 +16,17 @@ Begin and join a game in a server channel. Primary play is carried out in a dm w
 - ~~Random Role Choice~~
 
 ### Game
-- Taking actions
-- Time passing/action economy: influence, money, time
+- ~~Taking actions~~
+- Day progress action
+- Player inventory: influence, money, time.
 - Tracking location and available actions display
+- AI action choices
+- AI supporting and disliking
 - Newsiness and ranking and corruption
 - Proposals and Votes
 - Special Proposals
 - Playbooks
 - Help Functions
-- AI
 
 ### Additional
 - Highlights (a little idea)
