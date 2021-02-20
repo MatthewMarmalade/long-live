@@ -17,7 +17,7 @@ Begin and join a game in a server channel. Primary play is carried out in a dm w
 
 ### Game
 - ~~Taking actions~~
-- Day progress action
+- ~~Day progress action~~
 - Player inventory: influence, money, time.
 - Tracking location and available actions display
 - AI action choices
