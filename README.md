@@ -15,20 +15,28 @@ Begin and join a game in a server channel. Primary play is carried out in a dm w
 - ~~Role Leaving - messageReactionRemove~~
 - ~~Random Role Choice~~
 
-### Game
+### Basic Game
 - ~~Taking actions~~
 - ~~Day progress action~~
-- Player inventory: influence, money, time.
-- Tracking location and available actions display
-- AI action choices
-- AI supporting and disliking
+- ~~Player inventory: influence, money, time.~~
+- ~~Rudimentary inventory display~~
+- ~~AI action choices~~
+- Actions need to be more costly - should be doing less in a day. Map out. (emoji visiting? 3/day? longer durations on things?)
 - Newsiness and ranking and corruption
-- Proposals and Votes
-- Special Proposals
+- News -> Influence updates
+- Enacting Proposals and Votes
+- Fulfilling Petitions
+- Special Proposals - accusations and claiming.
+
+### Advanced Game
+- Tracking location and available actions display
+- Smarter AI action choices
+- AI supporting and disliking
 - Playbooks
-- Help Functions
+- Game alerts, like news but game-generated.
 
 ### Additional
+- Help functions
 - Highlights (a little idea)
 - Events (heightening, probably needs some AI playtests to configure) (connects well to the october dates chosen...)
 - Map (could be lots of fun! probably primarily static?)
