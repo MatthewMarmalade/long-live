@@ -34,6 +34,7 @@ Begin and join a game in a server channel. Primary play is carried out in a dm w
 - AI supporting and disliking
 - Playbooks
 - Game alerts, like news but game-generated.
+- Command shortcuts for those who prefer not to type quite as much?
 
 ### Additional
 - Help functions
