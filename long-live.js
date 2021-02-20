@@ -40,6 +40,17 @@ const random_names = [].concat(macbeth_names,hamlet_names);
 //VARS: LOCATIONS -> FACTION -> ROLE relationships
 var locationToFaction = {'Throne':'Spirit','Courtyard':'Common','Ballroom':'Noble','Chapel':'Faithful','Barracks':'Guard'};
 var roleToLocation = {'Grim':'Throne','Heir':'Courtyard','Advisor':'Ballroom','Bishop':'Chapel','Captain':'Barracks'};
+var roleToFaction = {'Grim':'Spirit','Heir':'Common','Advisor':'Noble','Bishop':'Faithful','Captain':'Guard'};
+
+//VARS: GLOBAL TWEAK VARIABLES
+const startingInfluence = 40;
+const startingCrowns = 100;
+const pressCost = 20;
+const laudAmount = 20;
+const laudBonus = 80;
+const besmirchAmount = 10;
+const besmirchPenalty = 80;
+const titheRate = 0.5;
 
 //HELPERS: Random Choice
 function randomPop(array) {
@@ -124,7 +135,7 @@ class Game {
         this.players = []; this.ais = []; this.characters = [];
         this.state = 'is beginning';
         this.random_names = random_names.slice();
-        this.day = new Day(0,this); this.next = true;
+        this.day = new Day(0,this);
         this.throne = new Location('Throne',this); this.courtyard = new Location('Courtyard',this); this.ballroom = new Location('Ballroom',this);
         this.chapel = new Location('Chapel',this); this.barracks = new Location('Barracks',this);
         this.locations = [this.throne,this.courtyard,this.ballroom,this.chapel,this.barracks];
@@ -319,7 +330,7 @@ class Game {
                 var character = this.characters[c];
                 let first_action = character.firstAction();
                 character.location = character.home;
-                let first_news = new News(this.day,Math.floor(Math.random() * 12),character.home,character,first_action,first_action,first_action.flavor());
+                let first_news = new News(this.day,Math.floor(Math.random() * 12),character.location,character,first_action,first_action,first_action.flavor());
                 this.day.news.push(first_news);
             }
             this.nextDay();
@@ -328,20 +339,33 @@ class Game {
     }
     //nextDay - advances the day, sends out news to everyone
     nextDay() {
-        if (this.next == true) {
-            for (var i in this.players) {
-                var player = this.players[i];
-                player.time = 12;
-                var newsTexts = player.getRelevantNewsTexts(this.day.news);
-                var message = '** NEWS ** *Whispers filter in at 10th bell about the movements of others the previous day...*\n-' + 
-                newsTexts.join('\n-');
-                player.user.send(message);
+        for (var p in this.players) {
+            if (!this.players[p].next) { console.log("LOG: Tried to advance day from " + this.day.day + " when player " + this.players[p].name + " is " + this.players[p].next); return;}
+        }// after this point, we know that all players are ready. Now, we need to fetch AI events
+
+        for (var a in this.ais) {
+            var ai = this.ais[a];
+            var timeLeft = true;
+            while (timeLeft) {
+                let action = ai.randomAction();
+                //console.log("LOG: Looping - make sure does not break! AI: " + ai.name + ", Action: " + action);
+                if (action.type == 'end') {timeLeft = false;}
+                let news = new News(this.day,ai.time,ai.location,ai,action,action,action.flavor());
+                this.day.news.push(news);
+                ai.execute(action);
             }
-            this.day = this.day.nextDay();
-            this.next = false;
-        } else {
-            console.log("ERROR: Tried to advance day when not ready.")
+            ai.time = 12;
+        }//all ai events should be in place now
+        for (var i in this.players) {
+            var player = this.players[i];
+            player.next = false;
+            player.time = 12;
+            var newsTexts = player.getRelevantNewsTexts(this.day.news);
+            var message = '** NEWS ** *Whispers filter in at 10th bell about the movements of others the previous day...*\n-' + 
+            newsTexts.join('\n-');
+            player.user.send(message);
         }
+        this.day = this.day.nextDay();
     }
     //newAction - parses a player's message into actions and returns a response, else returns null if the command is invalid
     newAction(player, truth, lie, flavor) {
@@ -355,16 +379,34 @@ class Game {
 
         //run the actual affect of the action on the game
         //pass the action on to the player so they can use it to affect their currencies/check validity
-        var valid = player.newAction(trueAction);   //SKELETON
+        var valid = player.newAction(trueAction);   //UNTESTED
         if (!valid) { console.log("LOG: Invalid action for player " + player.user.username + " to  perform: " + trueAction.toText()); return null; }
 
         //insert news of the action
         var news = new News(this.day, player.time, player.location, player, trueAction, lieAction, flavor);
-        console.log("Created news: " + news.all());
+        console.log("Created " + valid + " news: " + news.all());
         this.day.news.push(news);
+
+        //resend the update text (TEMPORARY)
+        player.user.send(player.stateText());
 
         //and construct an appropriate response
         return trueAction.response(player);
+    }
+    //newProposal - creates a proposal within the game.
+    newProposal(action,character) {
+        if (action.type != 'propose') {console.log('ERROR: Not a proposal action.'); return false;}
+        if (this.proposal != null) {console.log('ERROR: Proposal already in place.'); return false;}
+        this.proposal = new Proposal(action.crowns,action.location,this,character,this.day.day + 2);
+    }
+    //addVote - adds a vote to the current proposal.
+    addVote(vote,character) {
+        if (this.proposal != null) {
+            const valid = this.proposal.addVote(vote,character);
+            return valid;
+        } else {
+            return false;
+        }
     }
 }
 
@@ -381,10 +423,10 @@ class Day {
         return nextDay;
     }
     toText() {
-        if (this.day == 0) { return 'the 1st of October'; } else
-        if (this.day == 1) { return 'the 2nd of October'; } else 
-        if (this.day == 2) { return 'the 3rd of October'; } 
-        else { return 'the ' + this.day + 'th of October'; }
+        if (this.day == 0) { return 'the 1st of Oct.'; } else
+        if (this.day == 1) { return 'the 2nd of Oct.'; } else 
+        if (this.day == 2) { return 'the 3rd of Oct.'; } 
+        else { return 'the ' + (this.day+1) + 'th of Oct.'; }
     }
     //investigateText - returns the result of a player investigating another player in their current location
     investigateText(investigator, investigated) {
@@ -503,7 +545,8 @@ class Player {
     //constructor - when a player joins a game
     constructor(user, name, title, game) {
         this.user = user; this.name = name; this.title = title; this.game = game;
-        this.influence = {'Throne':0,'Courtyard':0,'Ballroom':0,'Chapel':0,'Barracks':0};
+        this.influence = {common:0,noble:0,faithful:0,guard:0};
+        this.crowns = startingCrowns; this.time = 0; this.next = true;
     }
     //mainText - formatting whatever information about a player is available into something suitable for the main text
     mainText() {
@@ -517,10 +560,22 @@ class Player {
             return '**' + this.name + '**';
         }
     }
+    //stateText - formats the various currencies etc. into a piece of update text.
+    stateText() {
+        return "It is " + timeText(this.time) + " on the " + this.game.day.toText() + 
+        ". You are in " + this.location.toText() + ". You have " + this.crowns + " crowns." + 
+        "You have " + this.influence.common + " Common Influence, " + this.influence.noble + " Noble Influence, " +
+        this.influence.faithful + " Faithful Influence, and " + this.influence.guard + " Guard Influence.";
+    }
     //setRole - gives this player a role
     setRole(role) {
-        this.role = role;
+        this.role = role.toString();
         this.home = this.game.getLocationByName(roleToLocation[role]);
+        this.location = this.home;
+        this.influence[this.home.faction.toLowerCase()] = startingInfluence;
+        if (this.role.toLowerCase() == 'bishop') {
+            this.influence.faithful = startingInfluence * 2;
+        }
     }
     firstAction() {
         return new Visit(this.home);
@@ -532,22 +587,125 @@ class Player {
                 texts.push(news[n].noTruth());
             }
         }
-        return texts;
+        return texts.slice(0,10);
     }
     //newAction - executes the action's effect on the player. returns whether the action was valid or not.
     newAction(action) {
-        if (action.type == 'End') {
-            this.game.next = true;
+        console.log("ACTION: " + action.type + " taking TIME: " + action.time + " out of remaining: " + this.time);
+        if (this.time >= action.time) { //only affects crowns and time; influence changes with news.
+            if (action.type == 'visit') {
+                if (this.location.location == action.destination.location) {console.log("ERROR: Cannot travel to current location."); return false;}
+                console.log("LOG: " + this.location.location + " -> " + action.destination.location);
+                this.location = action.destination;
+            } else if (action.type == 'investigate') {
+                console.log("LOG: INVESTIGATING");
+                //? nothing happens?
+            } else if (action.type == 'thank') {     //UNIMPLEMENTED
+                console.log("LOG: THANKING");
+                this.crowns -= action.crowns;
+            } else if (action.type == 'press') {     //UNIMPLEMENTED
+                console.log("LOG: PRESSING");
+                this.crowns -= action.crowns;
+                //this.influence[this.location.faction.toLowerCase()] -= pressCost;
+            } else if (action.type == 'pay') {
+                console.log("LOG: PAYING");
+                this.crowns -= action.crowns;
+            } else if (action.type == 'end') {
+                console.log("LOG: ENDING THE DAY, OR AT LEAST TRYING TO");
+                this.next = true;
+                this.location = this.home;
+            } else if (action.type == 'propose' && this.location.location == 'Throne' && this.canPropose) {
+                console.log("LOG: PROPOSING");
+                const valid = this.game.newProposal(action,this);
+                if (!valid) { console.log("ERROR: Invalid Proposal: " + action); return false; }
+            } else if (action.type == 'vote' && this.location.location == 'Throne') {
+                console.log("LOG: VOTING");
+                const valid = this.game.currentProposal.addVote(action.vote);
+                if (!valid) { console.log("ERROR: Invalid Vote: " + action); return false; }
+            } else if (action.type == 'hear' && this.location.location == 'Throne') {
+                console.log("LOG: HEARING");
+                const valid = this.game.newPetition(action);            //UNIMPLEMENTED
+                if (!valid) { console.log("ERROR: Invalid Petition: " + action); return false;}
+            } else if (action.type == 'poison' && this.location.location == 'Ballroom') {
+                console.log("LOG: POISONING");
+                const valid = this.game.poisonFood(action);             //UNIMPLEMENTED
+                if (!valid) { console.log("ERROR: Invalid Poisoning: " + action); return false;}
+            } else if (action.type == 'laud' && this.location.location == 'Ballroom') {
+                console.log("LOG: LAUDING");
+                //add influence to them, add their greatest influence type to you
+                //var greatest = action.player.laud();                                                //UNIMPLEMENTED
+                //this.influence[greatest.faction.toLowerCase()] += laudBonus;
+                //if (greatest.faction.toLowerCase() == 'noble') {
+                //    this.influence.noble += laudBonus;
+                //}
+            } else if (action.type == 'besmirch' && this.location.location == 'Ballroom') {
+                console.log("LOG: BESMIRCHING");
+                //add influence to them, add their greatest influence type to you
+                //var greatest = action.player.besmirch();                                                //UNIMPLEMENTED
+                //this.influence[greatest.faction.toLowerCase()] -= besmirchPenalty;
+                //if (greatest.faction.toLowerCase() == 'noble') {
+                //    this.influence.noble -= besmirchPenalty;
+                //}
+            } else if (action.type == 'pray' && this.location.location == 'Chapel') {
+                console.log("LOG: PRAYING");
+                //?
+            } else if (action.type == 'tithe' && this.location.location == 'Chapel') {
+                console.log("LOG: TITHING");
+                this.crowns -= action.crowns;
+                //this.influence.faithful += action.crowns() * titheRate;
+            } else if (action.type == 'bribe' && this.location.location == 'Barracks') {
+                console.log("LOG: BRIBING");
+                this.crowns -= action.crowns;
+                //this.influence.guard += action.crowns() * bribeRate;
+            } else if (action.type == 'direct' && this.location.location == 'Barracks' && this.influence.guard >= directPenalty) {
+                console.log("LOG: DIRECTING");
+                const valid = this.game.directAttention(action);        //UNIMPLEMENTED
+                if (!valid) { console.log("ERROR: Invalid Direct: " + action); return false;}
+                //this.influence[action.location.faction.toLowerCase()] -= directPenalty;
+            } else if (action.type == 'suspect' && this.location.location == 'Barracks' && this.influence.guard >= suspectPenalty) {
+                console.log("LOG: SUSPECTING");
+                const valid = this.game.suspect(action);        //UNIMPLEMENTED
+                if (!valid) { console.log("ERROR: Invalid Suspect: " + action); return false;}
+                //this.influence[action.location.faction.toLowerCase()] -= directPenalty;
+            } else if (action.type == 'accuse' && this.location.location == 'Courtyard') {
+                console.log("LOG: ACCUSING");
+                const valid = this.game.accuse(action);        //UNIMPLEMENTED
+                if (!valid) { console.log("ERROR: Invalid Direct: " + action); return false;}
+            } else if (action.type == 'support' && this.location.location == 'Courtyard') {
+                console.log("LOG: SUPPORTING");
+                this.supporting = action.character;     //UNIMPLEMENTED
+            } else if (action.type == 'claim' && this.location.location == 'Courtyard') {
+                console.log("LOG: CLAIMING");
+                const valid = this.game.claim(action);    //UNIMPLEMENTED
+                if (!valid) { console.log("ERROR: Invalid Claim: " + action); return false;}
+            } else {
+                //the suggested action is invalid in some way.
+                console.log("ERROR: Action Invalid: ");
+                console.log(action);
+                return false;
+            }
+            //if we've gotten to this point, the action above was valid. advance the clock!
+            this.time -= action.time;
+            return true;
+        } else {
+            console.log("ERROR: Action Too Long: " + action.time + "/" + this.time);
+            return false;
         }
-        return true;
     }
 }
 
 class AI { //similar API to player
     //constructor: when a game starts without all five players
     constructor(name, title, game, role) {
-        this.name = name; this.title = title; this.game = game; this.role = role; this.home = game.getLocationByName(roleToLocation[role]);
-        this.influence = {'Throne':0,'Courtyard':0,'Ballroom':0,'Chapel':0,'Barracks':0};
+        this.name = name; this.title = title; this.game = game; this.role = role.toString(); this.home = game.getLocationByName(roleToLocation[role]);
+        this.location = this.home;
+        this.influence = {common:0,noble:0,faithful:0,guard:0};
+        this.influence[roleToFaction[role].toLowerCase()] = startingInfluence;
+        //console.log("LOWERCASE TEST: " + role);
+        if (this.role.toLowerCase() == 'bishop') {
+            this.influence.faithful = startingInfluence * 2;
+        }
+        this.crowns = startingCrowns; this.time = 0;
     }
     //mainText - rendering for the playbill
     mainText() {
@@ -564,6 +722,70 @@ class AI { //similar API to player
     //firstAction - action undertaken on the first day
     firstAction() {
        return new Visit(this.home);
+    }
+    //randomAction - returns a random viable action based on role and location
+    randomAction() {
+        var action;
+        const role = this.role.toLowerCase();
+        switch (this.location.location.toLowerCase()) {
+            case 'throne': 
+            if (role == 'advisor' && randomChoice([0,1,1]) == 1) {
+                action = new Propose(randomChoice([100,150,200,300]),randomChoice([this.game.courtyard,this.game.chapel,this.game.barracks]));
+            } break;
+            case 'courtyard': break;
+            case 'ballroom': 
+            if (role != 'captain' && role != 'grim' && randomChoice([0,1,1]) == 1) {
+                action = new Laud(randomChoice(this.game.characters));
+            } break;
+            case 'chapel':
+            if (role != 'captain' && randomChoice([0,1,1]) == 1) {
+                action = new Pray();
+            } break;
+            case 'barracks': break;
+        }
+        if (action == null) {
+            action = randomChoice([0,0,1]) == 1 ? this.randomVisit() : new Investigate(randomChoice(this.game.characters));
+        }
+        if (action.time <= this.time) {
+            return action;
+        } else {
+            return new End(this.time);
+        }
+    }
+    //execute - runs the effect of an action
+    execute(action) {
+        if (this.time >= action.time) {
+            if (action.type == 'visit') {
+                this.location = action.destination;
+            } else if (action.type == 'investigate') {
+                //?
+            } else if (action.type == 'propose') {
+                const valid = this.game.newProposal(action,this);        //UNIMPLEMENTED
+                if (!valid) { console.log("ERROR: Invalid Proposal: " + action); return false; }
+            } else if (action.type == 'laud') {
+                //?
+            } else if (action.type == 'pray') {
+                //?
+            } else if (action.type == 'end') {
+                this.location = this.home;
+            } else {
+                console.log("ERROR: AI does not know how to execute action: " + action);
+                return false;
+            }
+            this.time -= action.time;
+            return true;
+        } else {
+            return false;
+        }
+    }
+    randomVisit() {
+        switch (this.location.location.toLowerCase()) {
+            case 'throne': return new Visit(randomChoice([this.game.courtyard,this.game.ballroom,this.game.chapel,this.game.barracks]));
+            case 'courtyard': return new Visit(randomChoice([this.game.throne,this.game.ballroom,this.game.chapel,this.game.barracks]));
+            case 'ballroom': return new Visit(randomChoice([this.game.throne,this.game.courtyard,this.game.chapel,this.game.barracks]));
+            case 'chapel': return new Visit(randomChoice([this.game.throne,this.game.courtyard,this.game.ballroom,this.game.barracks]));
+            case 'barracks': return new Visit(randomChoice([this.game.throne,this.game.courtyard,this.game.ballroom,this.game.chapel]));
+        }
     }
     //getRelevantNewsTexts - doesn't really need to be implemented as nothing is ever sent to them.
     getRelevantNewsTexts(news) {
@@ -709,10 +931,10 @@ function newAction(game,actionText,character) {
         if (player == null) { console.log("ERROR: '" + playerName + "' is not a player!"); return null; }
         return new Accuse(player);
     } else if (commandMatch(text, '[support *]')) {
-        const playerName = commandArgs(text, '[support *]')[0];
-        var player = game.getCharacterByName(playerName);
-        if (player == null) { console.log("ERROR: '" + playerName + "' is not a player!"); return null; }
-        return new Support(player);
+        const characterName = commandArgs(text, '[support *]')[0];
+        var character = game.getCharacterByName(characterName);
+        if (character == null) { console.log("ERROR: '" + characterName + "' is not a player!"); return null; }
+        return new Support(character);
     } else if (text == '[claim throne]') {
         return new Claim();
     } else {
@@ -724,8 +946,8 @@ function newAction(game,actionText,character) {
 //CLASS: Actions - still need flavor() methods and response(player) methods for all actions
 //[Visit the <Throne,Courtyard,Ballroom,Chapel,Barracks>]
 class Visit {
-    constructor(destination) {this.destination = destination; }
-    toText() { return 'were seen walking' }
+    constructor(destination) {this.type = 'visit'; this.destination = destination; this.time = 1}
+    toText() { return 'headed to ' + this.destination.toText() + " from where they were"; }
     flavor() { return "I think I'll check in on the " + this.destination.factionText();}
     response(player) {
         return '*The ' + titleCase(this.destination.factionText()) + ' welcome you to ' + this.destination.toText() + '*\n' + this.destination.visitText(player);
@@ -733,40 +955,45 @@ class Visit {
 }
 //[Investigate <Name>]
 class Investigate {
-    constructor(player) {this.player = player; }
+    constructor(player) {this.type = 'investigate'; this.player = player; this.time = 1;}
     toText() { return 'investigated ' + this.player.fullName(); }
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return player.game.day.previousDay.investigateText(player, this.player, 0);
     }
 }
 //[Thank <Crowns>]
 class Thank {
-    constructor(crowns) {this.crowns = crowns; }
+    constructor(crowns) {this.type = 'thank'; this.crowns = crowns; this.time = 0;}
     toText() { return 'thanked them with a gift of ' + this.crowns + ' crowns'; }
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return player.location.thankText(this.crowns);
     }
 }
 //[Press <Crowns>]
 class Press {
-    constructor(crowns) {this.crowns = crowns; }
+    constructor(crowns) {this.type = 'press'; this.crowns = crowns; this.time = 0;}
     toText() { return 'pressed them for further information, offering ' + this.crowns + ' crowns if they would divulge further'; }
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return player.location.pressText(this.crowns,player);
     }
 }
 //[Pay <Name> <Crowns>]
 class Pay {
-    constructor(crowns, player) {this.player = player; this.crowns = crowns;}
+    constructor(crowns, player) {this.type = 'pay'; this.player = player; this.crowns = crowns; this.time = 1;}
     toText() {return 'paid ' + this.player.fullName() + ' ' + crowns + ' crowns.';}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return '***The ' + player.location.servant() + '** agrees to carry your message to **' + this.player.fullName() + '**.*';
     }
 }
 //[End Day]
 class End {
-    constructor(time) { this.type = 'End'; this.time = time; }
+    constructor(time) {this.type = 'end'; this.time = time;}
     toText() {return this.time == 0 ? 'turned in for bed at the end of the day' : 'spent the rest of the day accounting to personal business';}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         var first; var remaining;
         if (player.location != player.home) {
@@ -785,32 +1012,36 @@ class End {
 }
 //[Propose <Crowns> Tax of <Faction>]
 class Propose {
-    constructor(crowns,location) {this.crowns = crowns; this.location = location;}
+    constructor(crowns,location) {this.type = 'propose'; this.crowns = crowns; this.location = location; this.time = 2;}
     toText() {return 'proposed a tax of **' + this.crowns + '** crowns upon the **' + this.location.factionText() + '**';}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return '*Your tax of **' + this.crowns + '** crowns was proposed. The **' + this.location.factionText() + '** will not be pleased...*\n' + this.location.proposalAngerText();
     }
 }
 //[Vote <Yea,Nay>]
 class Vote {
-    constructor(vote) {this.vote = vote;}
+    constructor(vote) {this.type = 'vote'; this.vote = vote; this.time = 1;}
     toText() {return "voted **'" + vote + "'** on the current proposal";}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return "*Your **'" + this.vote + "'** vote was officially registered with the chamberlain.*\n**The Chamberlain.** Thank you for your vote, " + player.role + ".";
     }
 }
 //[Hear Petition from <Faction>]
 class Hear {
-    constructor(location,character) {this.location = location; this.petition = location.factionPetition(character);}
+    constructor(location,character) {this.type = 'hear'; this.location = location; this.petition = location.factionPetition(character); this.time = 2;}
     toText() {return "heard a petition from the **" + this.location.factionText() + "** to have " + this.petition.action.toText();}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return this.petition.fullText(player);
     }
 }
 //[Poison Food]
 class Poison {
-    constructor () {this.food = randomChoice(['caviar', 'steak', 'coq au vin', 'souffle', 'champagne', 'trifle'])}
+    constructor () {this.type = 'poison'; this.food = randomChoice(['caviar', 'steak', 'coq au vin', 'souffle', 'champagne', 'trifle']); this.time = 3;}
     toText() {return "poisoned the " + this.food;}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return '*You tip the sinister alchemical concoction into the ' + this.food + ' where it disappears, leaving a lingering odour of treachery.*\n\
         **The Unfortunate Connoisseur.** I say, you all simply *must* try the ' + this.food + ", it's divine!";
@@ -818,40 +1049,45 @@ class Poison {
 }
 //[Laud <Player>]
 class Laud {
-    constructor(player) {this.player = player;}
-    toText() {return randomChoice(['sung the praises of', 'lauded', 'complimented']) + this.player.fullName();}
+    constructor(player) {this.type = 'laud'; this.player = player; this.time = 2;}
+    toText() {return randomChoice(['sung the praises of ', 'lauded ', 'complimented ']) + this.player.fullName();}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return "**The Shallow Sycophant.** *I've* certainly always thought so. You're so discerning, " + player.fullName() + "! ...May I call you " + player.name + "?";
     }
 }
 //[Besmirch <Player>]
 class Besmirch {
-    constructor(player) {this.player = player;}
-    toText() {return randomChoice(['castigated', 'insulted', 'besmirched the name of']) + this.player.fullName();}
+    constructor(player) {this.type = 'besmirch'; this.player = player; this.time = 2;}
+    toText() {return randomChoice(['castigated ', 'insulted ', 'besmirched the name of ']) + this.player.fullName();}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return "**The Curious Nobleperson.** Really? Oh, why that's *ghastly*!";
     }
 }
 //[Pray]
 class Pray {
-    constructor() {}
+    constructor() {this.type = 'pray'; this.time = 8;}
     toText() {return randomChoice(['held a solemn vigil for the departed','prayed for the soul of the ghost','knelt in prayer']);}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return "*The sun shines through the stained glass. The wind howls - or are those voices? You arise hours later, having received indeterminate comfort. \nYour knees hurt.*";
     }
 }
 //[Tithe <Crowns>]
 class Tithe {
-    constructor(crowns) {this.crowns = crowns;}
+    constructor(crowns) {this.type = 'tithe'; this.crowns = crowns; this.time = 2;}
     toText() {return randomChoice(['made a discrete donation of ' + this.crowns + ' crowns','slipped ' + this.crowns + ' crowns into the pocket of the Bishop']);}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return "**The Nervous Novice.** \**stammering*\* W-why, thank you, " + player.fullName() + "! For distribution to the poor, of course - how kind! How generous!"
     }
 }
 //[Bribe <Crowns>]
 class Bribe {
-    constructor(crowns) {this.crowns = crowns;}
+    constructor(crowns) {this.type = 'bribe'; this.crowns = crowns; this.time = 2;}
     toText() {return 'laid ' + this.crowns + ' crowns on the table to purchase a round of drinks for the Castle Guard.';}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         //QUESTION should they have a different response depending on the amount?
         return "**The Raucous Sentry.** *cheering* Much obliged, " + player.fullName() + ". This'll keep us in the cups for a while yet!";
@@ -859,40 +1095,45 @@ class Bribe {
 }
 //[Direct Attention <Location>]
 class Direct {
-    constructor(location) {this.location = location;}
+    constructor(location) {this.type = 'direct'; this.location = location; this.time = 2;}
     toText() {return 'suggested evidence might be found in ' + this.location.toText();}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return "**The Dutiful Sergeant.** " + titleCase(this.location.toText()) + ", you say? Well, we'll go give it a look-over tomorrow. Perhaps we'll turn up the bloody dagger after all!";
     }
 }
 //[Suspect <Name>]
 class Suspect {
-    constructor(player) {this.player = player;}
+    constructor(player) {this.type = 'suspect'; this.player = player; this.time = 2;}
     toText() {return 'confided suspicions that ' + this.player.fullName() + ' might be the *murderer*.';}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return "**The Cold Lieutenant.** That's a very serious accusation, " + player.fullName() + ". We'll bring " + this.player.fullName() + " in for questioning first thing tomorrow.";
     }
 }
 //[Accuse <Name>]
 class Accuse {
-    constructor(player) {this.player = player;}
+    constructor(player) {this.type = 'accuse'; this.player = player; this.time = 4;}
     toText() {return 'accused ' + this.player.fullName() + ' of being the *murderer*';}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return '*The crowd stills as your accusation of **' + this.player.fullName() + '** rings out across the courtyard. Ripples begin to spread. The people begin to chant **"Justice For ' + player.game.title + '!"***';
     }
 }
 //[Support <Name>]
 class Support {
-    constructor(player) {this.player = player;}
-    toText() {return 'publicly supported ' + this.player.fullName() + "'s right to the throne";}
+    constructor(character) {this.type = 'support'; this.character = character; this.time = 1;}
+    toText() {return 'publicly supported ' + this.character.fullName() + "'s right to the throne";}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
-        return '*The crowd acknowledges your public declaration of support for **' + this.player.fullName() + '**.*';
+        return '*The crowd acknowledges your public declaration of support for **' + this.character.fullName() + '**.*';
     }
 }
 //[Claim Throne]
 class Claim {
-    constructor() {}
+    constructor() {this.type = 'claim'; this.time = 4;}
     toText() {return 'claimed the throne';}
+    flavor() { return "FLAVOR: " + this.type;}
     response(player) {
         return '*The sudden Quiet is Deafening. Even the Winds pause their Howling for a Moment, as if to say that even the Elements shall bear Silent Witness to this moment.*'
     }
@@ -900,10 +1141,28 @@ class Claim {
 
 //CLASS: Proposal - represents a proposal in the kingdom
 class Proposal {
-    constructor(crowns,location,game,proposer) {
-        this.crowns = crowns; this.location = location; this.game = game; this.proposer = proposer;
+    constructor(crowns,location,game,proposer,deadline) {
+        this.crowns = crowns; this.location = location; this.game = game; this.proposer = proposer; this.deadline = deadline;
+        this.votes = {yea:[],nay:[]};
     }
-    //?
+    addVote(vote,character) {
+        console.log("LOG: Adding Character "+ character + "'s Vote: " + vote);
+        if (!this.hasVoted(character)) {
+            this.votes[vote].push(character);
+            return true;
+        } else {
+            return false;
+        }
+    }
+    hasVoted(character) {
+        for (var y in this.votes.yea) {
+            if (this.votes.yea[y] == character) { console.log("ERROR: Character " + character.name + " has already voted 'Yea'!"); return true; }
+        }
+        for (var n in this.votes.nay) {
+            if (this.votes.nay[n] == character) { console.log("ERROR: Character " + character.name + " has already voted 'Nay'!"); return true; }
+        }
+        return false;
+    }
 }
 
 //CLASS: Petition - represents a request for a particular action by a particular faction
@@ -1065,9 +1324,7 @@ bot.on('message', message => {
                 if (response != null) {
                     //then the action was successful
                     message.channel.send(response);
-                    if (game.next) {
-                        game.nextDay();
-                    }
+                    game.nextDay();
                 } else {
                     //then the action was not successful
                     console.log("ERROR: Response null: " + response);
