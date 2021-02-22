@@ -21,10 +21,14 @@ Begin and join a game in a server channel. Primary play is carried out in a dm w
 - ~~Player inventory: influence, money, time.~~
 - ~~Rudimentary inventory display~~
 - ~~AI action choices~~
-- Actions need to be more costly - should be doing less in a day. Map out. (emoji visiting? 3/day? longer durations on things?)
+- ~~3 Actions per day: Morning, Afternoon, Evening, Night~~
+- Emoji visiting
 - Newsiness and ranking and corruption
 - News -> Influence updates
 - Enacting Proposals and Votes
+- Lauding and Besmirching
+- Poisoning
+- Debt mechanic
 - Fulfilling Petitions
 - Special Proposals - accusations and claiming.
 
@@ -35,6 +39,7 @@ Begin and join a game in a server channel. Primary play is carried out in a dm w
 - Playbooks
 - Game alerts, like news but game-generated.
 - Command shortcuts for those who prefer not to type quite as much?
+- Dialogue Improvements
 
 ### Additional
 - Help functions
@@ -42,5 +47,8 @@ Begin and join a game in a server channel. Primary play is carried out in a dm w
 - Events (heightening, probably needs some AI playtests to configure) (connects well to the october dates chosen...)
 - Map (could be lots of fun! probably primarily static?)
 
-### Important/Bugs
+### Important/Bugs/Side
 - Should react to failed commands with a question mark, so that users can elect to receive an error message pmed? is that a sane amount of information to track?
+- Should have a command for submitting bugs/feedback during tests?
+
+Chin up. Almost there.
