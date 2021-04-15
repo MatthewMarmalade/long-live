@@ -250,8 +250,10 @@ module.exports = class Game {
         //sending money if a proposal finished
         if (this.proposal) {
         	if (this.proposal.deadline == this.day.day) {
-        		console.log("LOG: Proposal: " + this.proposal.toText() + " FINISHED. Result: ");
-        		this.proposal.payout()
+        		console.log("LOG: Proposal: " + this.proposal.toText() + " FINISHED. Result: " + this.proposal.result());
+        		if (this.proposal.result == 'yea') {
+        			this.proposal.payout()
+        		}
         		this.proposal = null;
         	} else {
         		console.log("LOG: Proposal: " + this.proposal.toText() + " is not yet finished, " + this.proposal.deadline - this.day.day + " days remaining.");
