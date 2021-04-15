@@ -209,10 +209,20 @@ module.exports = class Game {
     nextDay() {
         for (var p in this.players) {
             if (!this.players[p].next) { console.log("LOG: Tried to advance day from " + this.day.day + " when player " + this.players[p].name + " is " + this.players[p].next); return;}
-        }// after this point, we know that all players are ready. Now, we need to fetch AI events
+        }// after this point, we know that all players are ready. Now, the AI take their turns.
 
         for (var a in this.ais) {
             var ai = this.ais[a];
+            //dawn - nothing, as they don't respond to news yet
+
+            //morning - location and then nothing, as they don't respond to news yet and we don't understand mornings yet
+
+            //afternoon - a standard action they can do, though now flavored as choosing a location and then an action
+
+            //evening - a special action, based on influence
+
+            //night - nothing, as ais are good upstanding citizens
+
             var timeLeft = true;
             while (timeLeft) {
                 let action = ai.randomAction();
@@ -236,6 +246,17 @@ module.exports = class Game {
 
         console.log("LOG: Clearing News - moving news to locations and players.");
         this.clearNews();
+
+        //sending money if a proposal finished
+        if (this.proposal) {
+        	if (this.proposal.deadline == this.day.day) {
+        		console.log("LOG: Proposal: " + this.proposal.toText() + " FINISHED. Result: ");
+        		this.proposal.payout()
+        		this.proposal = null;
+        	} else {
+        		console.log("LOG: Proposal: " + this.proposal.toText() + " is not yet finished, " + this.proposal.deadline - this.day.day + " days remaining.");
+        	}
+        }
 
         //updating day
         this.day = this.day.nextDay();
@@ -295,12 +316,15 @@ module.exports = class Game {
     //clearNews - parses all the news that has accumulated over the day, enacting their effects.
     //specifically, moves the news to people (to be sent when they 'awake') and places (to be found when they 'arrive')
     clearNews() {
+        for (var p in this.players) {
+        	this.players[p].news = [];
+        }
         for (var n in this.day.news) {
             var news = this.day.news[n];
             //iterate on news type and 
             //for now, all news goes to all players? for to test?
             for (var p in this.players) {
-            	this.players[p].news.push(news)
+            	this.players[p].news.push(news);
             }
         }
     }
@@ -418,6 +442,9 @@ class Proposal {
         this.crowns = crowns; this.location = location; this.game = game; this.proposer = proposer; this.deadline = deadline;
         this.votes = {yea:[],nay:[]};
     }
+    toText() {
+    	return this.crowns + " tax of " + this.location.toText();
+    }
     addVote(vote,character) {
         console.log("LOG: Adding Character "+ character + "'s Vote: " + vote);
         if (!this.hasVoted(character)) {
@@ -429,12 +456,43 @@ class Proposal {
     }
     hasVoted(character) {
         for (var y in this.votes.yea) {
-            if (this.votes.yea[y] == character) { console.log("ERROR: Character " + character.name + " has already voted 'Yea'!"); return true; }
+            if (this.votes.yea[y].fullName() == character.fullName()) { console.log("ERROR: Character " + character.name + " has already voted 'Yea'!"); return true; }
         }
         for (var n in this.votes.nay) {
-            if (this.votes.nay[n] == character) { console.log("ERROR: Character " + character.name + " has already voted 'Nay'!"); return true; }
+            if (this.votes.nay[n].fullName() == character.fullName()) { console.log("ERROR: Character " + character.name + " has already voted 'Nay'!"); return true; }
         }
+        console.log("Character " + character.name + " has not voted, their vote can now be registered.");
         return false;
+    }
+    result() {
+    	if (this.votes.yea.length > this.votes.nay.length) {
+    		return 'yea';
+    	} else {
+    		return 'nay';
+    	}
+    }
+    payout() {
+    	var share;
+    	for (var c in this.game.characters) {
+    		var character = this.game.characters[c];
+    		if (character.role == 'Grim') {
+    			//grim gets nothing
+    			share = 0;
+    		} else if (character.fullName() == this.proposer.fullName() || character.role == 'Advisor') {
+    			if (character.fullName() == this.proposer.fullName() && character.role == 'Advisor') {
+    				//advisor and proposer gets 40%
+    				share = Math.round(0.4 * this.crowns);
+    			} else {
+    				//advisor xor proposer gets 30%
+    				share = Math.round(0.3 * this.crowns);
+    			}
+    		} else {
+    			//all others get 20%
+    			share = Math.round(0.2 * this.crowns);
+    		}
+    		console.log("LOG: " + character.fullName() + " receives " + share + " crowns!");
+    		character.crowns += share;
+    	}
     }
 }
 

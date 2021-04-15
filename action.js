@@ -221,10 +221,10 @@ class Propose {
 //[Vote <Yea,Nay>]
 class Vote {
     constructor(vote) {this.type = 'vote'; this.vote = vote; this.time = 1; this.origin = 'throne';}
-    toText() {return "voted **'" + vote + "'** on the current proposal";}
+    toText() {return "voted **'" + this.vote + "'** on the current proposal";}
     flavor() { return "FLAVOR: " + this.type;}
     execute(character) {
-        return character.game.currentProposal.addVote(character,this.vote);
+        return character.game.proposal.addVote(character,this.vote);
     }
     response(player) {
         return "*Your **'" + this.vote + "'** vote was officially registered with the chamberlain.*\n**The Chamberlain.** Thank you for your vote, " + player.role + ".";
