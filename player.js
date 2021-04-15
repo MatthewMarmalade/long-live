@@ -8,6 +8,7 @@ module.exports = class Player {
         this.user = user; this.name = name; this.title = title; this.game = game;
         this.influence = {common:0,noble:0,faithful:0,guard:0};
         this.crowns = helper.startingCrowns; this.time = 0; this.next = true;
+        this.news = [];
     }
     //mainText - formatting whatever information about a player is available into something suitable for the main text
     mainText() {
@@ -49,15 +50,29 @@ module.exports = class Player {
     firstAction() {
         return new Action.End(this.time);
     }
-    getRelevantNewsTexts(news) {
-        var texts = [];
-        for (var n in news) {
-            if (news[n].player != this && news[n].lie.type != 'visit') {
-                texts.push(news[n].noTruth());
-            }
-        }
-        return texts.slice(0,5);
+    wakeNews() {
+    	//news heard when a player wakes up
+    	var texts = [];
+    	for (var n in this.news) {
+    		if (this.news[n].lie.type != 'visit') {
+    			texts.push(this.news[n].toText())
+    		}
+    	}
+    	return texts.slice(0,10);
+    //         if (news[n].player != this && news[n].lie.type != 'visit') {
+    //             texts.push(news[n].noTruth());
+    //         }
+    //     }
     }
+    // getRelevantNewsTexts(news) {
+    //     var texts = [];
+    //     for (var n in news) {
+    //         if (news[n].player != this && news[n].lie.type != 'visit') {
+    //             texts.push(news[n].noTruth());
+    //         }
+    //     }
+    //     return texts.slice(0,5);
+    // }
     // //execute - executes the action's effect on the player. returns whether the action was valid or not.
     // execute(action) {
     //     if (this.time >= action.time) {

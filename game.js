@@ -73,7 +73,6 @@ module.exports = class Game {
             }
             if (player.reaction != null) { player.reaction.users.remove(player.user.id); }
             this.players.splice(this.players.indexOf(player),1);
-            gamesByUser[user.id] = null;
             return true;
         }
         return false; //if the player is not in the game
@@ -82,7 +81,7 @@ module.exports = class Game {
     //getPlayerByUser - returns the player corresponding to the discord user or null otherwise
     getPlayerByUser(user) {
         for (var i in this.players) {
-            if (this.players[i].user == user) {
+            if (this.players[i].user.id == user.id) {
                 return this.players[i]
             }
         }
@@ -149,11 +148,8 @@ module.exports = class Game {
     }
 
     //exuent - removes all players and this game from the record
-    exuent() {
-        for (var i in this.players) {
-            gamesByUser[this.players[i].user.id] = null;
-        }
-        gamesByChannel[this.main_channel.id] = null;
+    exuent(gamesByUser) {
+        console.log("LOG: Game:Exuent:This doesn't do anything?")
     }
 
     //start - begins the game.
@@ -232,7 +228,7 @@ module.exports = class Game {
                     this.day.news.push(news);
                 }
             }
-            ai.time = 3;
+            ai.time = 1;
         }//all ai events should be in place now
 
         console.log("LOG: Clearing Actions");
@@ -249,7 +245,7 @@ module.exports = class Game {
             var player = this.players[i];
             player.next = false;
             player.time = 3;
-            var newsTexts = player.getRelevantNewsTexts(this.day.news);
+            var newsTexts = player.wakeNews();
             var newsUpdate = '** NEWS ** *Whispers filter in at 10th bell about the movements of others the previous day...*\n-' + 
             newsTexts.join('\n-');
             player.user.send(player.dayHeader())
@@ -302,6 +298,10 @@ module.exports = class Game {
         for (var n in this.day.news) {
             var news = this.day.news[n];
             //iterate on news type and 
+            //for now, all news goes to all players? for to test?
+            for (var p in this.players) {
+            	this.players[p].news.push(news)
+            }
         }
     }
 

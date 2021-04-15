@@ -21,7 +21,7 @@ module.exports = class Day {
         var investigationTexts = [];
         for (var n in this.news) {
             var news = this.news[n];
-            if (news.location == investigator.location && news.player == investigated) {
+            if (news.location == investigator.location && news.character == investigated) {
                 investigationTexts.push(news.all());
             }
         }

@@ -51,6 +51,8 @@ bot.once('ready', () => {
     console.log('Long-Live Logged In And Ready!');
 })
 
+
+
 //MARK: MESSAGE HANDLING
 bot.on('message', message => {
     //console.log(message);
@@ -76,6 +78,22 @@ bot.on('message', message => {
         if (msg.toLowerCase() == 'help!') {
             //help page
             message.author.send(main_help_text);
+        } else if (commandMatch(msg, 'quick!')) {
+        	var old_game = gamesByChannel[message.channel.id];
+            if (old_game != null) {
+                console.log("ERROR: Should not start a new game while the old one is still available.");
+                message.react('🚫');
+                return;
+            }
+            var new_game
+            message.channel.send('LONGLIVE: quick game starting.')
+            	.then(text => target = text)
+            	.then(() => new_game = new Game(message.channel, target, 'Their Majesty', message.author))
+            	.then(() => gamesByChannel[message.channel.id] = new_game)
+            	.then(() => player = new_game.newPlayer(message.author, new_game.randomName(), 'Their Majesty'))
+            	.then(() => gamesByUser[message.author.id] = new_game)
+            	.then(() => new_game.start())
+            	.catch(console.error);
         } else if (commandMatch(msg, 'the * is dead!') || msg.toLowerCase() == 'their majesty is dead!') {
             //new game - permissions check?
             var old_game = gamesByChannel[message.channel.id];
@@ -104,6 +122,7 @@ bot.on('message', message => {
             if (game != null) {
                 if (game.removePlayer(message.author)) {
                     //message.react('✅');
+                    gamesByUser[message.author.id] = null;
                     game.main_message.edit(game.mainText());
                 } else {
                     message.react('🚫');
@@ -117,7 +136,11 @@ bot.on('message', message => {
             //permissions check?
             var game = gamesByChannel[message.channel.id];
             if (game != null) {
-                game.exuent();
+                //game.exuent(gamesByUser);
+                for (var p in game.players) {
+                	gamesByUser[game.players[p].user.id] = null;
+                }
+                gamesByChannel[game.main_channel.id] = null;
                 game.main_message.edit(game.exuentText());
                 game.main_message.reactions.removeAll();
                 delete game;
