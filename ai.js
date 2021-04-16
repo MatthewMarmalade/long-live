@@ -13,7 +13,7 @@ module.exports = class AI { //similar API to player
         if (this.role.toLowerCase() == 'bishop') {
             this.influence.faithful = helper.startingInfluence * 2;
         }
-        this.crowns = helper.startingCrowns; this.time = 0;
+        this.crowns = helper.startingCrowns; this.time = 0; this.beenAccused = false;
     }
     //mainText - rendering for the playbill
     mainText() {
@@ -38,7 +38,7 @@ module.exports = class AI { //similar API to player
         switch (this.location.location.toLowerCase()) {
             case 'throne': 
             if (role == 'advisor' && randomChoice([0,1,1]) == 1) {
-                action = new Action.Propose(randomChoice([this.game.courtyard,this.game.chapel,this.game.barracks]),randomChoice([100,150,200,300]));
+                action = new Action.Propose(randomChoice([100,150,200,300]),randomChoice([this.game.courtyard,this.game.chapel,this.game.barracks]));
             } break;
             case 'courtyard': break;
             case 'ballroom': 

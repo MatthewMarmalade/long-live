@@ -20,7 +20,7 @@ module.exports = class Game {
         this.chapel = new Location('Chapel',this); this.barracks = new Location('Barracks',this);
         this.locations = [this.throne,this.courtyard,this.ballroom,this.chapel,this.barracks];
         this.roles = {'Grim':null,'Heir':null,'Advisor':null,'Bishop':null,'Captain':null,'Mysterious':[]};
-        this.actions = {};
+        this.actions = {}; this.trial = 'none';
     }
     //randomName - returns a random unique name for a player.
     randomName() {
@@ -210,6 +210,16 @@ module.exports = class Game {
         for (var p in this.players) {
             if (!this.players[p].next) { console.log("LOG: Tried to advance day from " + this.day.day + " when player " + this.players[p].name + " is " + this.players[p].next); return;}
         }// after this point, we know that all players are ready. Now, the AI take their turns.
+        console.log("LOG: TRIAL STATUS: " + this.trial);
+        if (this.trial == 'concluded') {
+        	if (this.accusation.result() == 'death') {
+        		console.log("The accused, " + this.accusation.accused.fullName() + " was sentenced to DEATH!");
+        	} else {
+        		console.log("The accused, " + this.accusation.accused.fullName() + " was not found guilty of the murder of " + this.title + "!");
+        	}
+        	this.trial = 'none';
+        	this.accusation = null;
+        }
 
         for (var a in this.ais) {
             var ai = this.ais[a];
@@ -225,18 +235,33 @@ module.exports = class Game {
 
             var timeLeft = true;
             while (timeLeft) {
-                let action = ai.randomAction();
-                console.log("LOG: Looping - make sure does not break! AI: " + ai.name + ", Action: " + action.type);
-                if (action.type == 'end') {
-                    timeLeft = false;
-                } else if (action.type == 'visit') {
-                    ai.location = action.destination;
-                } else {
-                    this.actions[ai.name].push(action);
-                    ai.time -= action.time;
-                    let news = new News(this.day,ai.time,ai.location,ai,action,action,action.flavor());
-                    this.day.news.push(news);
-                }
+            	if (this.trial == 'in progress') {
+            		if (this.accusation.accused.fullName() != ai.fullName()) {
+            			let vote = new Action.Vote('death');
+            			this.actions[ai.name].push(vote);
+            			let voteNews = new News(this.day, ai.time, ai.location, ai, vote, vote, vote.flavor());
+            			this.day.news.push(voteNews);
+
+            			let end = new Action.End();
+            			this.actions[ai.name].push(end);
+            			let endNews = new News(this.day, ai.time, ai.location, ai, end, end, end.flavor());
+            			this.day.news.push(endNews);
+            		}
+            		timeLeft = false;
+            	} else {
+	                let action = ai.randomAction();
+	                console.log("LOG: Looping - make sure does not break! AI: " + ai.name + ", Action: " + action.type);
+	                if (action.type == 'end') {
+	                    timeLeft = false;
+	                } else if (action.type == 'visit') {
+	                    ai.location = action.destination;
+	                } else {
+	                    this.actions[ai.name].push(action);
+	                    ai.time -= action.time;
+	                    let news = new News(this.day,ai.time,ai.location,ai,action,action,action.flavor());
+	                    this.day.news.push(news);
+	                }
+	            }
             }
             ai.time = 1;
         }//all ai events should be in place now
@@ -260,29 +285,48 @@ module.exports = class Game {
         	}
         }
 
+        if (this.trial == 'in progress') {
+        	console.log("LOG: trial concluded")
+        	this.trial = 'concluded';
+        }
+
         //updating day
         this.day = this.day.nextDay();
 
         console.log("LOG: Sending updates to players for the next day.");
-        for (var i in this.players) {
-            var player = this.players[i];
-            player.next = false;
-            player.time = 3;
-            var newsTexts = player.wakeNews();
-            var newsUpdate = '** NEWS ** *Whispers filter in at 10th bell about the movements of others the previous day...*\n-' + 
-            newsTexts.join('\n-');
-            player.user.send(player.dayHeader())
-                .then(sentMessage => player.dayMessage = sentMessage);
-            player.user.send(newsUpdate);
-            player.user.send(player.stateText())
-                .then(sentMessage => player.stateMessage = sentMessage)
-                .then(() => player.stateMessage.react(helper.locationReactions[0]))
-                .then(() => player.stateMessage.react(helper.locationReactions[1]))
-                .then(() => player.stateMessage.react(helper.locationReactions[2]))
-                .then(() => player.stateMessage.react(helper.locationReactions[3]))
-                .then(() => player.stateMessage.react(helper.locationReactions[4]))
-                .catch(console.error);
-        }
+        if (this.accusation == null || this.trial == 'concluded') {
+	        for (var i in this.players) {
+	            var player = this.players[i];
+	            player.next = false;
+	            player.time = 3;
+	            var newsTexts = player.wakeNews();
+	            var newsUpdate = '** NEWS ** *Whispers filter in at 10th bell about the movements of others the previous day...*\n-' + 
+	            newsTexts.join('\n-');
+	            player.user.send(player.dayHeader())
+	                .then(sentMessage => player.dayMessage = sentMessage);
+	            player.user.send(newsUpdate);
+	            player.user.send(player.stateText())
+	                .then(sentMessage => player.stateMessage = sentMessage)
+	                .then(() => player.stateMessage.react(helper.locationReactions[0]))
+	                .then(() => player.stateMessage.react(helper.locationReactions[1]))
+	                .then(() => player.stateMessage.react(helper.locationReactions[2]))
+	                .then(() => player.stateMessage.react(helper.locationReactions[3]))
+	                .then(() => player.stateMessage.react(helper.locationReactions[4]))
+	                .catch(console.error);
+	        }
+	    } else if (this.trial == 'none') {
+	    	for (var i in this.players) {
+	    		var player = this.players[i];
+	    		player.fullName() == this.accusation.accused.fullName() ? player.next = true : player.next = false;
+	    		player.fullName() == this.accusation.accused.fullName() ? player.time = 0 : player.time = 1;
+	    		//player.user.send(player.dayHeader())
+	    		player.location = this.throne;
+	    		if (this.trial == 'none') { console.log("LOG: Starting trial"); this.trial = 'in progress'; }
+	    		var announcement = "**ANNOUNCEMENT**: " + this.accusation.accuser.fullName() + " has accused " + this.accusation.accused.fullName() +
+	    		" of the MURDER of " + this.title + "!\nThe Council now convenes, and must try the defendant. They will make their decision by casting a vote for either life... or death.";
+	    		player.user.send(announcement);
+	    	}
+	    }
     }
 
     //clearActions - parses all the actions that have accumulated over the day, enacting their effects.
@@ -407,7 +451,10 @@ module.exports = class Game {
     }
     //addVote - adds a vote to the current proposal.
     addVote(vote,character) {
-        if (this.proposal != null) {
+    	if (this.accusation != null) {
+    		const valid = this.accusation.addVote(vote,character);
+    		return valid;
+    	} else if (this.proposal != null) {
             const valid = this.proposal.addVote(vote,character);
             return valid;
         } else {
@@ -499,7 +546,36 @@ class Proposal {
 }
 
 class Accusation {
-    constructor(accuser, accused) {
-        this.accuser = accuser; this.accused = accused;
+    constructor(accuser, accused, game) {
+        this.accuser = accuser; this.accused = accused; this.game = game; this.votes = {life:[],death:[]}; accused.beenAccused = true;
+    }
+    toText() {
+    	return this.accuser.fullName() + "'s accusation of " + this.accused.fullName();
+    }
+    addVote(vote,character) {
+        console.log("LOG: Adding Character "+ character.name + "'s Vote: " + vote);
+        if (!this.hasVoted(character)) {
+            this.votes[vote].push(character);
+            return true;
+        } else {
+            return false;
+        }
+    }
+    hasVoted(character) {
+        for (var l in this.votes.life) {
+            if (this.votes.life[l].fullName() == character.fullName()) { console.log("ERROR: Character " + character.name + " has already voted 'Life'!"); return true; }
+        }
+        for (var d in this.votes.death) {
+            if (this.votes.death[d].fullName() == character.fullName()) { console.log("ERROR: Character " + character.name + " has already voted 'Death'!"); return true; }
+        }
+        console.log("Character " + character.name + " has not voted, their vote can now be registered.");
+        return false;
+    }
+    result() {
+    	if (this.votes.death.length > this.votes.life.length) {
+    		return 'death';
+    	} else {
+    		return 'life';
+    	}
     }
 }

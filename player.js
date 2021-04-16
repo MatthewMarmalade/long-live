@@ -8,7 +8,7 @@ module.exports = class Player {
         this.user = user; this.name = name; this.title = title; this.game = game;
         this.influence = {common:0,noble:0,faithful:0,guard:0};
         this.crowns = helper.startingCrowns; this.time = 0; this.next = true;
-        this.news = [];
+        this.news = []; this.beenAccused = false;
     }
     //mainText - formatting whatever information about a player is available into something suitable for the main text
     mainText() {

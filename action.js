@@ -40,7 +40,7 @@ newAction = (game,actionText,actor) => {
         if (location == null) { console.log("ERROR: '" + locText + "' is not a location!"); return null; }
         if (isNaN(crowns)) { console.log("ERROR: '" + crowns + "' is not a number!"); return null; }
         return new Propose(crowns,location);
-    } else if (text == '[vote yea]' || text == '[vote nay]') {
+    } else if (commandMatch(text, '[vote *]')) {
         const vote = commandArgs(text, '[vote *]')[0];
         return new Vote(vote);
     } else if (commandMatch(text, '[hear petition from *]')) {
@@ -117,7 +117,7 @@ class Visit {
     flavor() { return "I think I'll check in on the " + this.destination.factionText();}
     execute(character) { character.location = this.destination; return true;}
     response(player) {
-        return '*The ' + titleCase(this.destination.factionText()) + ' welcome you to ' + this.destination.toText() + '*\n' + this.destination.visitText(player);
+        return '*The ' + helper.titleCase(this.destination.factionText()) + ' welcome you to ' + this.destination.toText() + '*\n' + this.destination.visitText(player);
     }
 }
 //[Investigate <Name>]
@@ -327,7 +327,7 @@ class Direct {
         return character.game.direct(character,this);
     }
     response(player) {
-        return "**The Dutiful Sergeant.** " + titleCase(this.location.toText()) + ", you say? Well, we'll go give it a look-over tomorrow. Perhaps we'll turn up the bloody dagger after all!";
+        return "**The Dutiful Sergeant.** " + helper.titleCase(this.location.toText()) + ", you say? Well, we'll go give it a look-over tomorrow. Perhaps we'll turn up the bloody dagger after all!";
     }
 }
 //[Suspect <Name>]
